@@ -3,18 +3,18 @@ from pydantic import BaseModel
 
 
 class Response(BaseModel):
-    """统一响应模型，包含状态码、消息和数据，用于封装API的返回结果"""
+    """统一封装的返回格式"""
 
     code: int
     message: str
-    data: Any = {}
+    data: Any = None
 
 
-@classmethod
-def success(cls, message: str = "请求成功", data: Any = None):
-    return cls(code=200, message=message, data=data)
+    @classmethod
+    def success(cls, message: str = "请求成功", data: Any = None):
+        return cls(code=200, message=message, data=data)
 
 
-@classmethod
-def error(cls, message: str = "请求失败", data: Any = None):
-    return cls(code=400, message=message, data=data)
+    @classmethod
+    def error(cls, code: int = 500, message: str = "请求失败"):
+        return cls(code=code, message=message)
