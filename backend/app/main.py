@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
+from starlette.middleware.cors import CORSMiddleware
 from app.common.exceptions import (
     BusinessException,
     bussiness_excpetion_hadler,
@@ -15,6 +16,19 @@ from app.api.user import router as user_router
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 注册异常处理器
 app.add_exception_handler(BusinessException, bussiness_excpetion_hadler)
