@@ -1,6 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
+from app.api import api
+from app.config import UPLOAD_DIR
 from app.common.exceptions import (
     BusinessException,
     bussiness_excpetion_hadler,
@@ -10,8 +13,6 @@ from app.common.exceptions import (
 )
 from app.models.user import User
 from app.database import Base, engine
-from app.api.auth import router as auth_router
-from app.api.user import router as user_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -43,5 +44,7 @@ def root():
     return {"message": "FastAPI工程正在运行中"}
 
 
-app.include_router(auth_router, prefix="/api")
-app.include_router(user_router, prefix="/api")
+app.include_router(api)
+
+# 挂载静态资源：/uploads/xxx.jpg → uploads/xxx.jpg
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")

@@ -3,6 +3,15 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # 后端项目的根路径
 
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+UPLOAD_DIR = BASE_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+ALLOWED_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".gif", ".webp",
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".zip",
+}
+
 
 class Settings(BaseSettings):
     DATABASE_URL: str
