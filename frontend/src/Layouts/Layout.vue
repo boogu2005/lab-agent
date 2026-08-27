@@ -15,10 +15,10 @@
           <img style="width: 40px" src="@/imgs/proxy.png" alt="" />
           <div style="margin-left: 5px">财经大学智能实验室预约系统</div>
         </div>
-        <div style="display: flex; align-items: center">
-          <img src="@/imgs/proxy.png" alt="" style="width: 30px; border-radius: 50%" />
-          <div style="margin-left: 3px">管理员</div>
-        </div>
+        <router-link to="/manager/profile" style="display: flex; align-items: center; color: inherit; text-decoration: none">
+          <img :src="userInfo?.avatar || proxyImg" alt="" style="width: 30px; border-radius: 50%" />
+          <div style="margin-left: 3px">{{ userInfo?.name }}</div>
+        </router-link>
       </el-header>
       <el-container>
         <el-aside width="220px">
@@ -51,4 +51,8 @@
 
 <script setup>
 import { Menu as IconMenu, House, Setting, User } from '@element-plus/icons-vue'
+import { useUser } from '@/utils/user'
+import proxyImg from '@/imgs/proxy.png'
+
+const { userInfo } = useUser()
 </script>
