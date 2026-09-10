@@ -12,6 +12,7 @@ from app.common.exceptions import (
     global_excpetion_hadler,
 )
 from app.models.user import User
+from app.models.lab import Lab
 from app.database import Base, engine
 
 Base.metadata.create_all(bind=engine)
