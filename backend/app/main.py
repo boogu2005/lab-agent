@@ -13,6 +13,7 @@ from app.common.exceptions import (
 )
 from app.models.user import User
 from app.models.lab import Lab
+from app.models.equipment import Equipment
 from app.database import Base, engine
 
 Base.metadata.create_all(bind=engine)
