@@ -19,3 +19,8 @@ export function updateLabApi(labId, data) {
 export function deleteLabApi(labId) {
   return request({ url: `/api/lab/${labId}`, method: 'delete' })
 }
+
+/** 根据 ID 查询实验室详情 */
+export function getLab(labId) {
+  return request({ url: `/api/lab/${labId}`, method: 'get' })
+}

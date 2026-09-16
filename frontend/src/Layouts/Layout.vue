@@ -36,6 +36,10 @@
               <el-icon><icon-menu /></el-icon>
               系统首页
             </el-menu-item>
+            <el-menu-item v-if="userInfo?.role === 'student'" index="/manager/lablist">
+              <el-icon><OfficeBuilding /></el-icon>
+              实验室列表
+            </el-menu-item>
             <el-menu-item v-if="userInfo?.role === 'admin'" index="/manager/lab">
               <el-icon><House /></el-icon>
               实验室管理
@@ -59,7 +63,7 @@
 </template>
 
 <script setup>
-import { Menu as IconMenu, House, Setting, User } from '@element-plus/icons-vue'
+import { Menu as IconMenu, House, Setting, User, OfficeBuilding } from '@element-plus/icons-vue'
 import { useUser } from '@/utils/user'
 import { logout } from '@/utils/auth'
 import router from '@/router'
