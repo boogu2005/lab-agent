@@ -26,6 +26,7 @@
         <el-pagination v-model:current-page="params.page" v-model:page-size="params.page_size" :total="total" background layout="total, prev, pager, next" @current-change="load" />
       </div>
     </el-card>
+    <reserve-dialog v-model:visible="reserveVisible" :lab-id="currentLab?.id" :lab-name="currentLab?.name" />
   </div>
 </template>
 
@@ -33,19 +34,22 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getLabPageList } from '@/api/lab'
 import { Search } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import ReserveDialog from '@/components/ReserveDialog.vue'
 import router from '@/router'
 
 const params = reactive({ page: 1, page_size: 10, keywords: '', status: 1 })
 const loading = ref(false)
 const tableData = ref([])
 const total = ref(0)
+const reserveVisible = ref(false)
+const currentLab = ref(null)
 
 const handleViewEquipment = (lab) => {
   router.push({ path: '/manager/lab-equipment', query: { lab_id: lab.id } })
 }
 const handleReserve = (lab) => {
-  ElMessage.info(`稍后开发预约实验室 ${lab.name}`)
+  currentLab.value = lab
+  reserveVisible.value = true
 }
 const load = async () => {
   loading.value = true
