@@ -7,6 +7,17 @@ from app.config import BASE_DIR
 KB_DIR = BASE_DIR / "data" / "kb"
 CHROMA_DIR = BASE_DIR / "data" / "chroma"
 _collection: Collection | None = None
+_embedding_fn = None
+
+
+def get_embedding_fn():
+    """懒加载 embedding 模型，只创建一次。"""
+    global _embedding_fn
+    if _embedding_fn is None:
+        _embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="BAAI/bge-small-zh-v1.5"
+        )
+    return _embedding_fn
 
 
 def get_collection() -> Collection:
@@ -16,11 +27,8 @@ def get_collection() -> Collection:
         return _collection
     KB_DIR.mkdir(parents=True, exist_ok=True)
     CHROMA_DIR.mkdir(parents=True, exist_ok=True)
-    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name="BAAI/bge-small-zh-v1.5"
-    )
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    col = client.get_or_create_collection(name="lab_kb", embedding_function=embedding_fn)
+    col = client.get_or_create_collection(name="lab_kb", embedding_function=get_embedding_fn())
     if col.count() == 0:
         ids, docs, metas = [], [], []
         for path in sorted(KB_DIR.glob("*.md")):
@@ -33,6 +41,13 @@ def get_collection() -> Collection:
             col.add(ids=ids, documents=docs, metadatas=metas)
     _collection = col
     return col
+
+
+def warmup():
+    """在启动阶段加载模型并执行一次检索。"""
+    col = get_collection()
+    if col.count() > 0:
+        col.query(query_texts=["预热"], n_results=1)
 
 
 def search(query: str) -> str:

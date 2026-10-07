@@ -42,7 +42,7 @@ import DOMPurify from 'dompurify'
 
 const messages = ref([{
   role: 'assistant',
-  content: '您好，我是实验室助手。你可以问我怎么预约、取消，也可以问现在有哪些实验室、某个实验室的设备信息。'
+  content: '你好，我是实验室预约助手。可以问规则和开放实验室，也可以说「帮我预约明天下午的实验室」，确认后我会帮你提交。'
 }])
 const input = ref('')
 const loading = ref(false)

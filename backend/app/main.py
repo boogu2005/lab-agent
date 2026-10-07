@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -18,12 +19,18 @@ from app.models.lab import Lab
 from app.models.equipment import Equipment
 from app.models.reservation import Reservation
 from app.database import Base, engine
-from app.services import reservation_service
+from app.services import kb_service, reservation_service
+
+logger = logging.getLogger(__name__)
 
 Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    try:
+        await asyncio.to_thread(kb_service.warmup)
+    except Exception:
+        logger.exception("向量库预热失败，服务继续启动")
     task = asyncio.create_task(reservation_service.run_expire_scan())
     yield
     task.cancel()
