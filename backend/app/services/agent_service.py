@@ -1,4 +1,7 @@
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from collections.abc import AsyncIterator
+from typing import Any
+
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -31,6 +34,14 @@ SYSTEM_PROMPT = """你是智能实验室预约系统的 Agent，回答要简洁�
 如果询问开放时间或实验室规则，优先调用 search_lab_docs。
 """
 
+TOOL_LABELS = {
+    "search_lab_docs": "检索实验室知识库",
+    "list_open_labs": "查询开放实验室",
+    "list_lab_equipments": "查询实验室设备",
+    "create_lab_reservation": "提交预约",
+    "get_today": "获取今天日期",
+}
+
 
 def build_agent(db: Session, current_user: User):
     tools = agent_tools.build_tools(db, current_user)
@@ -39,10 +50,11 @@ def build_agent(db: Session, current_user: User):
         base_url=settings.LLM_BASE_URL,
         model=settings.LLM_MODEL,
         temperature=0,
+        streaming=True,
     ).bind_tools(tools)
 
-    def agent_node(state: MessagesState):
-        response = llm.invoke(state["messages"])
+    async def agent_node(state: MessagesState):
+        response = await llm.ainvoke(state["messages"])
         return {"messages": [response]}
 
     graph = StateGraph(MessagesState)
@@ -54,43 +66,82 @@ def build_agent(db: Session, current_user: User):
     return graph.compile()
 
 
-def run_agent(db: Session, current_user: User, data: ChatRequest):
-    """运行 LangGraph 对话工作流。"""
-    if not data.messages:
-        raise BusinessException(message="对话内容为空")
+def _chunk_text(chunk: Any) -> str:
+    """将模型流式消息的内容转成纯文本。"""
+    if chunk is None:
+        return ""
+    content = getattr(chunk, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict):
+                parts.append(part.get("text") or "")
+            elif isinstance(part, str):
+                parts.append(part)
+        return "".join(parts)
+    return str(content) if content is not None else ""
+
+
+def _tool_output_preview(output: Any, limit: int = 200) -> str:
+    """截取工具结果供前端展示。"""
+    if isinstance(output, ToolMessage):
+        output = output.content
+    text = output if isinstance(output, str) else str(output)
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def _build_history(data: ChatRequest) -> list:
+    """只把对话文本转成 LangChain 消息。"""
     history = []
-    for message in data.messages:
+    for message in data.messages or []:
         if message.role == "user" and message.content.strip():
             history.append(HumanMessage(content=message.content.strip()))
         elif message.role == "assistant" and message.content.strip():
             history.append(AIMessage(content=message.content.strip()))
     if not history:
         raise BusinessException(message="请输入您要对话的内容")
-    if not settings.LLM_API_KEY:
-        raise BusinessException(message="未获取到大模型的API Key")
+    return history
 
-    agent = build_agent(db, current_user)
+
+async def stream_agent(db: Session, current_user: User, data: ChatRequest) -> AsyncIterator[dict]:
+    """逐条生成状态、工具过程和回答文本，供 SSE 接口发送。"""
     try:
-        result = agent.invoke(
-            {"messages": [SystemMessage(content=SYSTEM_PROMPT), *history]},
-            config={"recursion_limit": 10},
-        )
-    except BusinessException:
-        raise
-    except Exception as exc:
-        raise BusinessException(message="大模型调用失败，请稍后重试") from exc
+        history = _build_history(data)
+        if not settings.LLM_API_KEY:
+            raise BusinessException(message="未获取到大模型的API Key")
+        agent = build_agent(db, current_user)
+        inputs = {"messages": [SystemMessage(content=SYSTEM_PROMPT), *history]}
+        yield {"type": "status", "message": "正在思考…"}
 
-    messages = result.get("messages") or []
-    if not messages:
-        raise BusinessException(message="大模型没有任何返回内容")
-    for message in reversed(messages):
-        if isinstance(message, AIMessage):
-            content = message.content
-            if isinstance(content, list):
-                content = "".join(
-                    part.get("text", "") if isinstance(part, dict) else str(part)
-                    for part in content
-                )
-            if isinstance(content, str) and content.strip():
-                return content.strip()
-    raise BusinessException(message="大模型没有返回可用内容")
+        async for event in agent.astream_events(
+            inputs,
+            version="v2",
+            config={"recursion_limit": 10},
+        ):
+            kind = event.get("event")
+            if kind == "on_tool_start":
+                name = event.get("name") or ""
+                yield {"type": "tool_start", "name": name, "label": TOOL_LABELS.get(name, name)}
+            elif kind == "on_tool_end":
+                name = event.get("name") or ""
+                yield {
+                    "type": "tool_end",
+                    "name": name,
+                    "label": TOOL_LABELS.get(name, name),
+                    "preview": _tool_output_preview((event.get("data") or {}).get("output")),
+                }
+            elif kind == "on_chat_model_stream":
+                meta = event.get("metadata") or {}
+                if meta.get("langgraph_node") not in (None, "agent"):
+                    continue
+                text = _chunk_text((event.get("data") or {}).get("chunk"))
+                if text:
+                    yield {"type": "token", "content": text}
+
+        yield {"type": "done"}
+    except BusinessException as exc:
+        yield {"type": "error", "message": exc.message}
+    except Exception:
+        yield {"type": "error", "message": "大模型调用失败，请稍后重试"}

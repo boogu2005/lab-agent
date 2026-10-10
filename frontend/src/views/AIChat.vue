@@ -15,8 +15,15 @@
               color: item.role === 'user' ? '#fff' : '#333', lineHeight: '1.6',
               boxShadow: '0 1px 2px rgba(0, 0, 0, 0.06)'
             }"
-            v-html="parseMarkdown(item.content)"
-          ></div>
+          >
+            <div v-if="item.role === 'assistant' && item.status" style="margin-bottom: 6px; font-size: 12px; color: #909399">
+              {{ item.status }}
+            </div>
+            <div v-if="item.role === 'assistant' && item.steps?.length" style="margin-bottom: 8px; font-size: 12px; color: #909399; line-height: 1.5">
+              <div v-for="(step, i) in item.steps" :key="i">· {{ step }}</div>
+            </div>
+            <div v-html="parseMarkdown(item.content)"></div>
+          </div>
         </div>
       </div>
       <div style="margin-top: 12px; display: flex; gap: 8px; align-items: flex-end">
@@ -35,10 +42,11 @@
 </template>
 
 <script setup>
-import { chatApi } from '@/api/ai'
-import { ref, nextTick } from 'vue'
+import { chatStreamApi } from '@/api/ai'
+import { ref, reactive, nextTick } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { ElMessage } from 'element-plus'
 
 const messages = ref([{
   role: 'assistant',
@@ -61,11 +69,46 @@ const handleSend = async () => {
   input.value = ''
   loading.value = true
   scrollToBottom()
+  const assistant = reactive({ role: 'assistant', content: '', status: '正在思考…', steps: [] })
+  messages.value.push(assistant)
+  const history = messages.value
+    .filter((item) => item.role === 'user' || item.role === 'assistant')
+    .slice(0, -1)
+    .map(({ role, content }) => ({ role, content }))
+
   try {
-    const history = messages.value.filter((item) => item.role === 'user' || item.role === 'assistant')
-    const res = await chatApi({ messages: history })
-    if (res.code === 200) { messages.value.push(res.data); scrollToBottom() }
-  } finally { loading.value = false }
+    await chatStreamApi({ messages: history }, (evt) => {
+      if (evt.type === 'status') {
+        assistant.status = evt.message || '正在思考…'
+      } else if (evt.type === 'tool_start') {
+        const label = evt.label || evt.name || '工具'
+        assistant.status = `正在${label}…`
+        assistant.steps.push(`开始：${label}`)
+      } else if (evt.type === 'tool_end') {
+        const label = evt.label || evt.name || '工具'
+        assistant.status = `${label}完成`
+        assistant.steps.push(`完成：${label}`)
+      } else if (evt.type === 'token') {
+        assistant.content += evt.content || ''
+        assistant.status = ''
+      } else if (evt.type === 'done') {
+        assistant.status = ''
+      } else if (evt.type === 'error') {
+        assistant.status = ''
+        if (!assistant.content) assistant.content = evt.message || '请求失败'
+        ElMessage.error(evt.message || '请求失败')
+      }
+      scrollToBottom()
+    })
+  } catch (err) {
+    assistant.status = ''
+    if (!assistant.content) assistant.content = err.message || '网络异常'
+    ElMessage.error(err.message || '网络异常')
+  } finally {
+    loading.value = false
+    assistant.status = ''
+    scrollToBottom()
+  }
 }
 const parseMarkdown = (text) => {
   if (!text) return ''
