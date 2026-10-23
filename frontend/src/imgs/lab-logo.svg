@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 582 529" role="img" aria-label="智能实验室标志">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M291 94V280" stroke="#0709a7" stroke-width="37"/>
+    <path d="M215 139V281L90 355M366 139V281L491 355" stroke="#2589bf" stroke-width="37"/>
+    <path d="M245 358 65 461M337 358l180 103" stroke="#080aa8" stroke-width="37"/>
+    <path d="m164 484 127-73 127 73" stroke="#2589bf" stroke-width="37"/>
+    <circle cx="291" cy="59" r="32" fill="#fff" stroke="#2589bf" stroke-width="13"/>
+    <circle cx="291" cy="337" r="55" fill="#fff" stroke="#080aa8" stroke-width="12"/>
+    <circle cx="48" cy="466" r="32" fill="#fff" stroke="#2589bf" stroke-width="13"/>
+    <circle cx="533" cy="466" r="32" fill="#fff" stroke="#2589bf" stroke-width="13"/>
+  </g>
+</svg>

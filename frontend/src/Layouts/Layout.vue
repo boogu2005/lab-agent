@@ -12,7 +12,7 @@
         <div
           style="flex: 1; display: flex; align-items: center; font-size: 24px; font-weight: bold"
         >
-          <img style="width: 40px" src="@/imgs/proxy.png" alt="" />
+          <img style="width: 40px" src="@/imgs/lab-logo.svg" alt="智能实验室标志" />
           <div style="margin-left: 5px">财经大学智能实验室预约系统</div>
         </div>
         <el-dropdown @command="handleCommand">
