@@ -67,7 +67,11 @@
           </el-menu>
         </el-aside>
         <el-main>
-          <router-view />
+          <router-view v-slot="{ Component }">
+            <KeepAlive include="AIChat">
+              <component :is="Component" />
+            </KeepAlive>
+          </router-view>
         </el-main>
       </el-container>
     </el-container>

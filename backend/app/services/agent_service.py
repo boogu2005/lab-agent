@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -53,8 +54,8 @@ def build_agent(db: Session, current_user: User):
         streaming=True,
     ).bind_tools(tools)
 
-    async def agent_node(state: MessagesState):
-        response = await llm.ainvoke(state["messages"])
+    async def agent_node(state: MessagesState, config: RunnableConfig):
+        response = await llm.ainvoke(state["messages"], config=config)
         return {"messages": [response]}
 
     graph = StateGraph(MessagesState)
