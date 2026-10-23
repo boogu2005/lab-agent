@@ -1,7 +1,12 @@
 <template>
   <div>
     <el-card>
-      <template #header><strong>AI智能助手</strong></template>
+      <template #header>
+        <div style="display: flex; justify-content: space-between; align-items: center">
+          <strong>AI智能助手</strong>
+          <el-button size="small" :disabled="loading" @click="handleClear">清空对话</el-button>
+        </div>
+      </template>
       <div ref="listRef" style="height: 480px; overflow-y: auto; padding: 8px 4px; background-color: #fafafa; border-radius: 6px">
         <div
           v-for="(item, index) in messages"
@@ -42,16 +47,17 @@
 </template>
 
 <script setup>
-import { chatStreamApi } from '@/api/ai'
-import { ref, reactive, nextTick } from 'vue'
+import { chatStreamApi, clearChatHistoryApi, getChatHistoryApi } from '@/api/ai'
+import { ref, reactive, nextTick, onMounted } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
-const messages = ref([{
+const greeting = () => ({
   role: 'assistant',
   content: '你好，我是实验室预约助手。可以问规则和开放实验室，也可以说「帮我预约明天下午的实验室」，确认后我会帮你提交。'
-}])
+})
+const messages = ref([greeting()])
 const input = ref('')
 const loading = ref(false)
 const listRef = ref()
@@ -62,6 +68,35 @@ const scrollToBottom = () => {
     if (elem) elem.scrollTop = elem.scrollHeight
   })
 }
+
+const loadHistory = async () => {
+  try {
+    const res = await getChatHistoryApi()
+    const rows = res.data || []
+    if (rows.length) {
+      messages.value = rows.map(({ role, content }) => ({ role, content }))
+      scrollToBottom()
+    }
+  } catch (err) {
+    // 请求拦截器已经提示，保留欢迎语即可
+  }
+}
+
+const handleClear = async () => {
+  try {
+    await ElMessageBox.confirm('确定要清空当前对话记录吗？', '提示', { type: 'warning' })
+  } catch (err) {
+    return
+  }
+  try {
+    await clearChatHistoryApi()
+    messages.value = [greeting()]
+    ElMessage.success('对话已清空')
+  } catch (err) {
+    // 请求拦截器已经提示
+  }
+}
+
 const handleSend = async () => {
   const text = input.value.trim()
   if (!text || loading.value) return
@@ -71,13 +106,11 @@ const handleSend = async () => {
   scrollToBottom()
   const assistant = reactive({ role: 'assistant', content: '', status: '正在思考…', steps: [] })
   messages.value.push(assistant)
-  const history = messages.value
-    .filter((item) => item.role === 'user' || item.role === 'assistant')
-    .slice(0, -1)
-    .map(({ role, content }) => ({ role, content }))
+  // 历史由后端按当前用户从数据库读取，这里只传新提问
+  const payload = { messages: [{ role: 'user', content: text }] }
 
   try {
-    await chatStreamApi({ messages: history }, (evt) => {
+    await chatStreamApi(payload, (evt) => {
       if (evt.type === 'status') {
         assistant.status = evt.message || '正在思考…'
       } else if (evt.type === 'tool_start') {
@@ -115,4 +148,6 @@ const parseMarkdown = (text) => {
   marked.setOptions({ breaks: true })
   return DOMPurify.sanitize(marked.parse(text))
 }
+
+onMounted(loadHistory)
 </script>

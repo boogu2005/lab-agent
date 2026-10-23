@@ -18,6 +18,7 @@ from app.models.user import User
 from app.models.lab import Lab
 from app.models.equipment import Equipment
 from app.models.reservation import Reservation
+from app.models.chat import ChatMessage
 from app.database import Base, engine
 from app.services import kb_service, reservation_service
 

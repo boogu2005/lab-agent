@@ -9,8 +9,8 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from app.common.exceptions import BusinessException
 from app.config import settings
-from app.schemas.ai import ChatRequest
-from app.services import agent_tools
+from app.database import SessionLocal
+from app.services import agent_tools, chat_history_service
 
 
 SYSTEM_PROMPT = """你是智能实验室预约系统的 Agent，回答要简洁。
@@ -91,28 +91,43 @@ def _tool_output_preview(output: Any, limit: int = 200) -> str:
     return text if len(text) <= limit else text[:limit] + "…"
 
 
-def _build_history(data: ChatRequest) -> list:
-    """只把对话文本转成 LangChain 消息。"""
+def _build_history(user_id: int) -> list:
+    """从数据库读取最近的对话记录，转成 LangChain 消息。"""
     history = []
-    for message in data.messages or []:
-        if message.role == "user" and message.content.strip():
-            history.append(HumanMessage(content=message.content.strip()))
-        elif message.role == "assistant" and message.content.strip():
-            history.append(AIMessage(content=message.content.strip()))
+    with SessionLocal() as db:
+        rows = chat_history_service.list_messages(
+            db, user_id, limit=chat_history_service.MAX_HISTORY
+        )
+        for row in rows:
+            content = (row.content or "").strip()
+            if not content:
+                continue
+            if row.role == "user":
+                history.append(HumanMessage(content=content))
+            elif row.role == "assistant":
+                history.append(AIMessage(content=content))
     if not history:
         raise BusinessException(message="请输入您要对话的内容")
     return history
 
 
-async def stream_agent(user_id: int, data: ChatRequest) -> AsyncIterator[dict]:
+def _save_answer(user_id: int, content: str) -> None:
+    if not content:
+        return
+    with SessionLocal() as db:
+        chat_history_service.append_message(db, user_id, "assistant", content)
+
+
+async def stream_agent(user_id: int) -> AsyncIterator[dict]:
     """逐条生成状态、工具过程和回答文本，供 SSE 接口发送。"""
     try:
-        history = _build_history(data)
+        history = _build_history(user_id)
         if not settings.LLM_API_KEY:
             raise BusinessException(message="未获取到大模型的API Key")
         agent = build_agent(user_id)
         inputs = {"messages": [SystemMessage(content=SYSTEM_PROMPT), *history]}
         yield {"type": "status", "message": "正在思考…"}
+        answer_parts: list[str] = []
 
         async for event in agent.astream_events(
             inputs,
@@ -137,8 +152,10 @@ async def stream_agent(user_id: int, data: ChatRequest) -> AsyncIterator[dict]:
                     continue
                 text = _chunk_text((event.get("data") or {}).get("chunk"))
                 if text:
+                    answer_parts.append(text)
                     yield {"type": "token", "content": text}
 
+        _save_answer(user_id, "".join(answer_parts).strip())
         yield {"type": "done"}
     except BusinessException as exc:
         yield {"type": "error", "message": exc.message}

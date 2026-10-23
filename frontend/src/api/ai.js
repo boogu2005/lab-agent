@@ -1,4 +1,15 @@
+import request from '@/utils/request'
 import { getToken } from '@/utils/auth'
+
+/** 查询当前用户的聊天记录 */
+export function getChatHistoryApi() {
+  return request({ url: '/api/ai/chat/history', method: 'get' })
+}
+
+/** 清空当前用户的聊天记录 */
+export function clearChatHistoryApi() {
+  return request({ url: '/api/ai/chat/history', method: 'delete' })
+}
 
 /** SSE 流式对话；每收到一条 data 帧调用一次 onEvent。 */
 export async function chatStreamApi(data, onEvent) {
