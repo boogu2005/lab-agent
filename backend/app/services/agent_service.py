@@ -6,11 +6,9 @@ from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
-from sqlalchemy.orm import Session
 
 from app.common.exceptions import BusinessException
 from app.config import settings
-from app.models.user import User
 from app.schemas.ai import ChatRequest
 from app.services import agent_tools
 
@@ -44,8 +42,8 @@ TOOL_LABELS = {
 }
 
 
-def build_agent(db: Session, current_user: User):
-    tools = agent_tools.build_tools(db, current_user)
+def build_agent(user_id: int):
+    tools = agent_tools.build_tools(user_id)
     llm = ChatOpenAI(
         api_key=settings.LLM_API_KEY,
         base_url=settings.LLM_BASE_URL,
@@ -106,13 +104,13 @@ def _build_history(data: ChatRequest) -> list:
     return history
 
 
-async def stream_agent(db: Session, current_user: User, data: ChatRequest) -> AsyncIterator[dict]:
+async def stream_agent(user_id: int, data: ChatRequest) -> AsyncIterator[dict]:
     """逐条生成状态、工具过程和回答文本，供 SSE 接口发送。"""
     try:
         history = _build_history(data)
         if not settings.LLM_API_KEY:
             raise BusinessException(message="未获取到大模型的API Key")
-        agent = build_agent(db, current_user)
+        agent = build_agent(user_id)
         inputs = {"messages": [SystemMessage(content=SYSTEM_PROMPT), *history]}
         yield {"type": "status", "message": "正在思考…"}
 

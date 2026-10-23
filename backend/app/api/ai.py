@@ -26,13 +26,14 @@ async def chat_stream(
     user_id = current_user.id
 
     async def event_gen():
+        # 只在这里校验一次用户；工具执行时会各自打开独立会话。
         with SessionLocal() as db:
             stream_user = db.get(User, user_id)
             if stream_user is None or stream_user.status != 1:
                 yield _sse_line({"type": "error", "message": "用户不存在或已被禁用，请重新登录"})
                 return
-            async for event in agent_service.stream_agent(db, stream_user, data):
-                yield _sse_line(event)
+        async for event in agent_service.stream_agent(user_id, data):
+            yield _sse_line(event)
 
     return StreamingResponse(
         event_gen(),

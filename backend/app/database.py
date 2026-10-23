@@ -3,7 +3,8 @@ from sqlalchemy import create_engine, DateTime
 from app.config import settings
 from datetime import datetime
 
-engine = create_engine(settings.DATABASE_URL)
+# pool_pre_ping 会在取连接时探活，避免 MySQL 空闲超时后拿到已断开的连接
+engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True, pool_recycle=3600)
 
 # 数据库session会话的连接工厂
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
