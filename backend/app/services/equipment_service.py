@@ -3,6 +3,7 @@ from app.common.response import PageResponse
 from app.models.equipment import Equipment
 from app.models.lab import Lab
 from app.schemas.equipment import EquipmentResponse, EquipmentCreateRequest, EquipmentUpdateRequest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 
@@ -70,4 +71,8 @@ def delete_equipment(db: Session, equipment_id: int):
     if not equipment:
         raise BusinessException(message="实验室设备不存在")
     db.delete(equipment)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise BusinessException(message="该设备已有预约记录，不能删除", code=409)

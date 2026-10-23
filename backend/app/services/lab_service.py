@@ -1,4 +1,5 @@
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import BusinessException
@@ -69,4 +70,8 @@ def delete_lab(db: Session, lab_id: int):
     if not lab:
         raise BusinessException(message="实验室不存在")
     db.delete(lab)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise BusinessException(message="该实验室已有设备或预约记录，不能删除", code=409)

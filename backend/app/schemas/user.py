@@ -30,7 +30,7 @@ class PasswordUpdateRequest(BaseModel):
 
 class UserCreateRequest(BaseModel):
     username: str
-    password: str = "123"
+    password: str
     name: str | None = None
     email: str | None = None
     phone: str | None = None

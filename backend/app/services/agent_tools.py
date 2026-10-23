@@ -2,11 +2,12 @@ from datetime import datetime
 import json
 
 from langchain_core.tools import tool
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import BusinessException
-from app.models.reservation import Reservation
 from app.models.user import User
+from app.schemas.reservation import ReservationCreateRequest
 from app.services import equipment_service, kb_service, lab_service, reservation_service
 
 
@@ -76,7 +77,7 @@ def build_tools(db: Session, current_user: User):
     ) -> str:
         """创建预约单，预约实验室或设备。"""
         try:
-            data = Reservation(
+            data = ReservationCreateRequest(
                 lab_id=lab_id,
                 equipment_id=equipment_id,
                 date=date,
@@ -97,9 +98,14 @@ def build_tools(db: Session, current_user: User):
                 },
                 ensure_ascii=False,
             )
+        except ValidationError:
+            db.rollback()
+            return json.dumps({"ok": False, "error": "预约日期或时间格式错误"}, ensure_ascii=False)
         except BusinessException as exc:
+            db.rollback()
             return json.dumps({"ok": False, "error": exc.message}, ensure_ascii=False)
         except Exception as exc:
+            db.rollback()
             return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
 
     @tool

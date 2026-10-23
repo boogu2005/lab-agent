@@ -23,7 +23,8 @@ def create_reservation(db: Session, current_user: User, data: ReservationCreateR
         raise BusinessException(message="预约的结束时间必须晚于开始时间")
     if data.date == current_date and data.start_time < current_time:
         raise BusinessException(message="预约开始时间不能小于当前的时间")
-    lab = db.query(Lab).filter(Lab.id == data.lab_id).first()
+    # 同一实验室的预约串行检查，避免并发请求同时判断该时段为空。
+    lab = db.query(Lab).filter(Lab.id == data.lab_id).with_for_update().first()
     if not lab:
         raise BusinessException(message="实验室不存在")
     if lab.status != 1:
@@ -53,7 +54,8 @@ def create_reservation(db: Session, current_user: User, data: ReservationCreateR
         query = query.filter(Reservation.equipment_id == data.equipment_id)
     else:
         query = query.filter(Reservation.equipment_id.is_(None))
-    if query.first():
+    # 锁定读取可看到等待实验室锁期间已提交的预约。
+    if query.with_for_update().first():
         raise BusinessException(message="该时段已预约")
 
     reservation = Reservation(

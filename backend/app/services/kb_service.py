@@ -23,23 +23,33 @@ def get_embedding_fn():
 def get_collection() -> Collection:
     """初始化本地向量库并导入课程资料"""
     global _collection
-    if _collection is not None:
-        return _collection
-    KB_DIR.mkdir(parents=True, exist_ok=True)
-    CHROMA_DIR.mkdir(parents=True, exist_ok=True)
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    col = client.get_or_create_collection(name="lab_kb", embedding_function=get_embedding_fn())
-    if col.count() == 0:
-        ids, docs, metas = [], [], []
-        for path in sorted(KB_DIR.glob("*.md")):
-            content = path.read_text(encoding="utf-8").strip()
-            if content:
-                docs.append(content)
-                ids.append(path.stem)
-                metas.append({"source": path.name})
-        if docs:
-            col.add(ids=ids, documents=docs, metadatas=metas)
-    _collection = col
+    if _collection is None:
+        KB_DIR.mkdir(parents=True, exist_ok=True)
+        CHROMA_DIR.mkdir(parents=True, exist_ok=True)
+        client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+        _collection = client.get_or_create_collection(
+            name="lab_kb", embedding_function=get_embedding_fn()
+        )
+
+    col = _collection
+    existing = col.get(include=["documents"])
+    saved = dict(zip(existing["ids"], existing["documents"]))
+    current = {}
+    changed_ids, changed_docs, changed_metas = [], [], []
+    for path in sorted(KB_DIR.glob("*.md")):
+        content = path.read_text(encoding="utf-8").strip()
+        if not content:
+            continue
+        current[path.stem] = content
+        if saved.get(path.stem) != content:
+            changed_ids.append(path.stem)
+            changed_docs.append(content)
+            changed_metas.append({"source": path.name})
+    if changed_ids:
+        col.upsert(ids=changed_ids, documents=changed_docs, metadatas=changed_metas)
+    removed = list(saved.keys() - current.keys())
+    if removed:
+        col.delete(ids=removed)
     return col
 
 

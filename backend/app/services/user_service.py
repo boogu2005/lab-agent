@@ -5,6 +5,7 @@ from app.utils.password import verify_password, hash_password
 from app.common.exceptions import BusinessException
 from app.schemas.user import PasswordUpdateRequest
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from app.common.response import PageResponse
 
 
@@ -92,4 +93,8 @@ def delete_user(db: Session, user_id: int, current_user: User):
     if not user:
         raise BusinessException(message="用户不存在")
     db.delete(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise BusinessException(message="该用户已有预约记录，不能删除", code=409)
